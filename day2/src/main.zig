@@ -14,6 +14,8 @@ fn getOffset(char: u8) usize {
     }
 }
 
+// a fixedBufferStream advances an internal index after each read, so we're basically "popping"
+// a char off the front
 fn readChar(fb: anytype) u8 {
     var buffer: [1]u8 = undefined;
     _ = fb.read(buffer[0..]) catch unreachable;
