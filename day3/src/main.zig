@@ -52,30 +52,41 @@ fn findMostCommon(lines: [][]u8, pos: usize) u1 {
     return 0;
 }
 
-fn getLines(fb: anytype, lines: *ArrayList([]u8)) !void {
-    var buffer: [12]u8 = undefined;
-    while (fb.pos < try fb.getEndPos()) {
-        const line = try fb.reader().readUntilDelimiterOrEof(&buffer, '\n');
-        try lines.append(line.?);
-    }
-}
-
 pub fn problemTwo() anyerror!void {
     var gpa = GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
 
-    var lines = try ArrayList([]u8).initCapacity(&gpa.allocator, 100);
-    defer lines.deinit();
+    var leading_1_lines = try ArrayList([]u8).initCapacity(&gpa.allocator, 100);
+    defer leading_1_lines.deinit();
+
+    var leading_0_lines = try ArrayList([]u8).initCapacity(&gpa.allocator, 100);
+    defer leading_1_lines.deinit();
 
     const input = @embedFile("../input");
     var fb = io.fixedBufferStream(input[0..]);
-    try getLines(&fb, &lines);
+    var buffer: [12]u8 = undefined;
+    var first_sum: u32 = 0;
+    while (fb.pos < try fb.getEndPos()) {
+        const line = try fb.reader().readUntilDelimiterOrEof(&buffer, '\n');
+        if (line.?[0] - '0' == 1) {
+            try leading_1_lines.append(line.?);
+            first_sum += 1;
+        } else {
+            try leading_0_lines.append(line.?);
+        }
+    }
+
+    var lines: *ArrayList([]u8) = &leading_0_lines;
+    var initial_one = first_sum > (leading_1_lines.items.len + leading_0_lines.items.len) / 2;
+    if (initial_one) {
+        lines = &leading_1_lines;
+    }
 
     var pos: usize = 0;
     while (pos < 12) {
         const most_common = findMostCommon(lines.items, pos);
         var idx: usize = 0;
-        for (lines.items) |line| {
+        for (leading_1_lines.items) |line| {
             if (line[pos] - '0' == most_common) {
                 lines.items[idx] = line;
                 idx += 1;
@@ -91,8 +102,13 @@ pub fn problemTwo() anyerror!void {
     }
     var oxygen = try std.fmt.parseUnsigned(u32, lines.items[0], 2);
 
-    fb.pos = 0;
-    try getLines(&fb, &lines);
+    // pick the other list
+    if (initial_one) {
+        lines = &leading_0_lines;
+    } else {
+        lines = &leading_1_lines;
+    }
+
     pos = 0;
     while (pos < 12) {
         const most_common = findMostCommon(lines.items, pos);
