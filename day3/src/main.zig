@@ -34,18 +34,31 @@ pub fn problemOne() anyerror!void {
         }
     }
 
-    std.debug.print("lines: {d}\n", .{line_count});
-    std.debug.print("{any}\n", .{bit_counts});
     std.debug.print("gamma: {d}, epsilon: {d}, power output: {d}\n", .{ gamma, epsilon, gamma * epsilon });
 }
 
-fn findMostCommon(lines: [][]u8, pos: usize) u1 {
+fn findMostCommon(lines: [][]const u8, pos: usize) u1 {
     var sum: u32 = 0;
     for (lines) |line| {
         sum += line[pos] - '0';
     }
 
-    if (sum > lines.len / 2) {
+    const threshold = lines.len / 2 + @mod(lines.len, 2);
+    if (sum >= threshold) {
+        return 1;
+    }
+
+    return 0;
+}
+
+fn findLeastCommon(lines: [][]const u8, pos: usize) u1 {
+    var sum: u32 = 0;
+    for (lines) |line| {
+        sum += line[pos] - '0';
+    }
+
+    const threshold = lines.len / 2 + @mod(lines.len, 2);
+    if (sum < threshold) {
         return 1;
     }
 
@@ -56,39 +69,32 @@ pub fn problemTwo() anyerror!void {
     var gpa = GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
 
-    var leading_1_lines = try ArrayList([]u8).initCapacity(&gpa.allocator, 100);
-    defer leading_1_lines.deinit();
-
-    var leading_0_lines = try ArrayList([]u8).initCapacity(&gpa.allocator, 100);
-    defer leading_1_lines.deinit();
-
+    // const input = @embedFile("../input");
     const input = @embedFile("../input");
     var fb = io.fixedBufferStream(input[0..]);
-    var buffer: [12]u8 = undefined;
-    var first_sum: u32 = 0;
-    while (fb.pos < try fb.getEndPos()) {
-        const line = try fb.reader().readUntilDelimiterOrEof(&buffer, '\n');
-        if (line.?[0] - '0' == 1) {
-            try leading_1_lines.append(line.?);
-            first_sum += 1;
-        } else {
-            try leading_0_lines.append(line.?);
-        }
-    }
 
-    var lines: *ArrayList([]u8) = &leading_0_lines;
-    var initial_one = first_sum > (leading_1_lines.items.len + leading_0_lines.items.len) / 2;
-    if (initial_one) {
-        lines = &leading_1_lines;
+    var o2_lines = try ArrayList([]const u8).initCapacity(&gpa.allocator, 100);
+    defer o2_lines.deinit();
+
+    var co2_lines = try ArrayList([]const u8).initCapacity(&gpa.allocator, 100);
+    defer co2_lines.deinit();
+
+    while (fb.pos < try fb.getEndPos()) {
+        const prev_pos = fb.pos;
+        _ = try fb.reader().skipUntilDelimiterOrEof('\n');
+        // can't read into array list because it's a list of slices,
+        // so we need to slice the source data at the appropriate positions
+        try o2_lines.append(input[prev_pos .. fb.pos - 1]);
+        try co2_lines.append(input[prev_pos .. fb.pos - 1]);
     }
 
     var pos: usize = 0;
-    while (pos < 12) {
-        const most_common = findMostCommon(lines.items, pos);
+    while (pos < o2_lines.items[0].len) {
+        const most_common = findMostCommon(o2_lines.items, pos);
         var idx: usize = 0;
-        for (leading_1_lines.items) |line| {
+        for (o2_lines.items) |line| {
             if (line[pos] - '0' == most_common) {
-                lines.items[idx] = line;
+                o2_lines.items[idx] = line;
                 idx += 1;
             }
         }
@@ -97,25 +103,18 @@ pub fn problemTwo() anyerror!void {
             break;
         }
 
-        lines.items.len = idx;
+        o2_lines.items.len = idx;
         pos += 1;
     }
-    var oxygen = try std.fmt.parseUnsigned(u32, lines.items[0], 2);
-
-    // pick the other list
-    if (initial_one) {
-        lines = &leading_0_lines;
-    } else {
-        lines = &leading_1_lines;
-    }
+    var oxygen = try std.fmt.parseUnsigned(u32, o2_lines.items[0], 2);
 
     pos = 0;
-    while (pos < 12) {
-        const most_common = findMostCommon(lines.items, pos);
+    while (pos < co2_lines.items[0].len) {
+        const least_common = findLeastCommon(co2_lines.items, pos);
         var idx: usize = 0;
-        for (lines.items) |line| {
-            if (line[pos] - '0' != most_common) {
-                lines.items[idx] = line;
+        for (co2_lines.items) |line| {
+            if (line[pos] - '0' == least_common) {
+                co2_lines.items[idx] = line;
                 idx += 1;
             }
         }
@@ -124,11 +123,12 @@ pub fn problemTwo() anyerror!void {
             break;
         }
 
-        lines.items.len = idx;
+        co2_lines.items.len = idx;
         pos += 1;
     }
-    var co2 = try std.fmt.parseUnsigned(u32, lines.items[0], 2);
-    std.debug.print("oxygen: {d}, co2: {d}\n", .{ oxygen, co2 });
+    var co2 = try std.fmt.parseUnsigned(u32, co2_lines.items[0], 2);
+
+    std.debug.print("oxygen: {d}, co2: {d}, answer: {d}\n", .{ oxygen, co2, oxygen * co2 });
 }
 
 pub fn main() !void {
