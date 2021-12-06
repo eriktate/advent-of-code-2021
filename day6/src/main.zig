@@ -9,7 +9,6 @@ const days = 256;
 fn problemOne() !void {
     var digits: [9]u64 = std.mem.zeroes([9]u64);
 
-    // split on comma
     const input = @embedFile("../input");
 
     var input_digits = mem.split(u8, input[0..], ",");
@@ -17,7 +16,6 @@ fn problemOne() !void {
         digits[digit[0] - '0'] += 1;
     }
 
-    // loop for number of days
     var day: usize = 0;
     while (day < days) : (day += 1) {
         const reproductions = digits[0];
