@@ -125,7 +125,9 @@ fn generateGrid(alloc: *std.mem.Allocator, input: []const u8) !Grid {
     }
     lines.index = 0;
 
+    // allocate space for the cells
     var cells = try alloc.alloc(Cell, height * width);
+    // allocate space for the slices into cells (2D slice)
     var grid = try alloc.alloc([]Cell, height);
     var row: usize = 0;
     var idx: usize = 0;
@@ -164,7 +166,6 @@ fn recordSize(sizes: []u32, size: u32) void {
     }
 }
 
-// assumption: all basins are surrounded by 9s
 pub fn problemTwo() anyerror!void {
     var gpa = GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
@@ -180,29 +181,33 @@ pub fn problemTwo() anyerror!void {
     var sizes = [3]u32{ 0, 0, 0 };
     for (grid.grid) |row, row_idx| {
         for (row) |cell, col_idx| {
-            const up = if (row_idx == 0) 0 else row_idx - 1;
-            const down = row_idx + 1;
-            const left = if (col_idx == 0) 0 else col_idx - 1;
-            const right = col_idx + 1;
+            const neighbors = [4]Pos{
+                // up
+                Pos{ .row = if (row_idx == 0) 0 else row_idx - 1, .col = col_idx },
+                // down
+                Pos{ .row = if (row_idx + 1 == grid.grid.len) 0 else row_idx + 1, .col = col_idx },
+                // left
+                Pos{ .row = row_idx, .col = if (col_idx == 0) 0 else col_idx - 1 },
+                // right
+                Pos{ .row = row_idx, .col = if (col_idx + 1 == grid.width) col_idx else col_idx + 1 },
+            };
 
-            if (up != row_idx and grid.grid[up][col_idx].val <= cell.val) {
-                continue;
+            var low_point = true;
+            for (neighbors) |pos| {
+                const neighbor = grid.grid[pos.row][pos.col];
+                if (pos.row == row_idx and pos.col == col_idx) {
+                    continue;
+                }
+
+                if (neighbor.val <= cell.val) {
+                    low_point = false;
+                }
             }
 
-            if (down < grid.grid.len and grid.grid[down][col_idx].val <= cell.val) {
-                continue;
+            if (low_point) {
+                const size: u32 = fillBasin(&grid, row_idx, col_idx);
+                recordSize(&sizes, size);
             }
-
-            if (left != col_idx and row[left].val <= cell.val) {
-                continue;
-            }
-
-            if (right < row.len and row[right].val <= cell.val) {
-                continue;
-            }
-
-            const size: u32 = fillBasin(&grid, row_idx, col_idx);
-            recordSize(&sizes, size);
         }
     }
 
