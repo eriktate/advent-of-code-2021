@@ -42,7 +42,6 @@ pub fn problemOne() anyerror!void {
                 continue;
             }
 
-            std.debug.print("Found low point {} at {}, {}\n", .{ cell - '0', row_idx, col_idx });
             risk_level += (cell - '0' + 1);
         }
     }
@@ -50,11 +49,119 @@ pub fn problemOne() anyerror!void {
     std.debug.print("Risk Level: {}\n", .{risk_level});
 }
 
-fn fillBasin(grid: [][]u8, row: usize, col: usize, from_row: usize, from_col: usize) u32 {
-    const up = if (row_idx == 0) 0 else row_idx - 1;
-    const down = row_idx + 1;
-    const left = if (col_idx == 0) 0 else col_idx - 1;
-    const right = col_idx + 1;
+const Cell = struct {
+    val: u8,
+    visited: bool,
+};
+
+const Grid = struct {
+    cells: []Cell,
+    grid: [][]Cell,
+    width: usize,
+
+    fn print(self: Grid) void {
+        for (self.grid) |row| {
+            for (row) |cell| {
+                if (cell.visited) {
+                    std.debug.print("* ", .{});
+                } else {
+                    std.debug.print("{} ", .{cell.val});
+                }
+            }
+            std.debug.print("\n", .{});
+        }
+        std.debug.print("\n", .{});
+    }
+};
+
+const Pos = struct {
+    row: usize,
+    col: usize,
+};
+
+fn fillBasin(grid: *Grid, row: usize, col: usize) u32 {
+    const current = &grid.grid[row][col];
+    if (current.val == 9) {
+        return 0;
+    }
+
+    current.visited = true;
+
+    const neighbors = [4]Pos{
+        // up
+        Pos{ .row = if (row == 0) 0 else row - 1, .col = col },
+        // down
+        Pos{ .row = if (row + 1 == grid.grid.len) 0 else row + 1, .col = col },
+        // left
+        Pos{ .row = row, .col = if (col == 0) 0 else col - 1 },
+        // right
+        Pos{ .row = row, .col = if (col + 1 == grid.width) col else col + 1 },
+    };
+
+    var sum: u32 = 1;
+    for (neighbors) |pos| {
+        if (pos.row == row and pos.col == col) {
+            continue;
+        }
+
+        const neighbor = grid.grid[pos.row][pos.col];
+        if (neighbor.val > current.val and !neighbor.visited) {
+            sum += fillBasin(grid, pos.row, pos.col);
+        }
+    }
+
+    return sum;
+}
+
+fn generateGrid(alloc: *std.mem.Allocator, input: []const u8) !Grid {
+    var lines = std.mem.split(u8, input, "\n");
+
+    const width = lines.next().?.len;
+    var height: usize = 1;
+    while (lines.next()) |line| {
+        if (line.len != 0) {
+            height += 1;
+        }
+    }
+    lines.index = 0;
+
+    var cells = try alloc.alloc(Cell, height * width);
+    var grid = try alloc.alloc([]Cell, height);
+    var row: usize = 0;
+    var idx: usize = 0;
+    while (lines.next()) |line| {
+        if (line.len == 0) {
+            break;
+        }
+
+        for (line) |digit| {
+            cells[idx] = Cell{
+                .val = digit - '0',
+                .visited = false,
+            };
+            idx += 1;
+        }
+        grid[row] = cells[row * width .. (row + 1) * width];
+        row += 1;
+    }
+
+    return Grid{
+        .cells = cells,
+        .grid = grid[0..],
+        .width = width,
+    };
+}
+
+fn recordSize(sizes: []u32, size: u32) void {
+    var size_cp = size;
+    var idx: usize = 0;
+    while (idx < sizes.len) : (idx += 1) {
+        if (sizes[idx] < size_cp) {
+            var temp = sizes[idx];
+            sizes[idx] = size_cp;
+            size_cp = temp;
+        }
+    }
 }
 
 // assumption: all basins are surrounded by 9s
@@ -64,43 +171,43 @@ pub fn problemTwo() anyerror!void {
 
     var alloc = &gpa.allocator;
 
-    var rows = try ArrayList([]const u8).initCapacity(alloc, 1024);
-    defer rows.deinit();
     const input = @embedFile("../input");
-    var lines = std.mem.split(u8, input, "\n");
-    while (lines.next()) |line| {
-        if (line.len != 0) {
-            try rows.append(line);
-        }
-    }
+    var grid = try generateGrid(alloc, input);
+    defer alloc.free(grid.grid);
+    defer alloc.free(grid.cells);
 
-    var risk_level: u32 = 0;
-    for (rows.items) |row, row_idx| {
+    var risk_level: u32 = 1;
+    var sizes = [3]u32{ 0, 0, 0 };
+    for (grid.grid) |row, row_idx| {
         for (row) |cell, col_idx| {
             const up = if (row_idx == 0) 0 else row_idx - 1;
             const down = row_idx + 1;
             const left = if (col_idx == 0) 0 else col_idx - 1;
             const right = col_idx + 1;
 
-            if (up != row_idx and rows.items[up][col_idx] <= cell) {
+            if (up != row_idx and grid.grid[up][col_idx].val <= cell.val) {
                 continue;
             }
 
-            if (down < rows.items.len and rows.items[down][col_idx] <= cell) {
+            if (down < grid.grid.len and grid.grid[down][col_idx].val <= cell.val) {
                 continue;
             }
 
-            if (left != col_idx and row[left] <= cell) {
+            if (left != col_idx and row[left].val <= cell.val) {
                 continue;
             }
 
-            if (right < row.len and row[right] <= cell) {
+            if (right < row.len and row[right].val <= cell.val) {
                 continue;
             }
 
-            std.debug.print("Found low point {} at {}, {}\n", .{ cell - '0', row_idx, col_idx });
-            risk_level += (cell - '0' + 1);
+            const size: u32 = fillBasin(&grid, row_idx, col_idx);
+            recordSize(&sizes, size);
         }
+    }
+
+    for (sizes) |size| {
+        risk_level *= size;
     }
 
     std.debug.print("Risk Level: {}\n", .{risk_level});
