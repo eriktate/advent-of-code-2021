@@ -43,6 +43,24 @@ fn foldDot(dot: Dot, fold: Instruction) Dot {
     }
 }
 
+fn print(dots: AutoHashMap(Dot, void)) void {
+    var buffer: [6][40]u8 = undefined;
+    for (buffer) |row, row_idx| {
+        for (row) |_, col| {
+            buffer[row_idx][col] = '.';
+        }
+    }
+
+    var it = dots.iterator();
+    while (it.next()) |entry| {
+        buffer[entry.key_ptr.y][entry.key_ptr.x] = '#';
+    }
+
+    for (buffer) |line| {
+        std.debug.print("{s}\n", .{line});
+    }
+}
+
 pub fn main() anyerror!void {
     var gpa = GeneralPurposeAllocator(.{}){};
     // defer _ = gpa.deinit();
@@ -88,7 +106,7 @@ pub fn main() anyerror!void {
         });
     }
 
-    for (instructions.items[0..1]) |instruction| {
+    for (instructions.items) |instruction| {
         var it = dots.iterator();
         while (it.next()) |entry| {
             const dot = foldDot(entry.key_ptr.*, instruction);
@@ -97,5 +115,6 @@ pub fn main() anyerror!void {
         }
     }
 
-    std.debug.print("Answer: {}\n", .{dots.count()});
+    // std.debug.print("Answer: {}\n", .{dots.count()});
+    print(dots);
 }
